@@ -1,6 +1,6 @@
 [package]
-name = "blackpill-blink"
-version = "0.1.0"
+name = "grandpa2-firmware"
+version = "0.2.0"
 edition = "2021"
 
 [dependencies]
@@ -10,7 +10,7 @@ panic-halt = "0.2.0"
 usb-device = "0.3.2"
 usbd-midi = "0.5.1"
 embedded-hal = "0.2.7"
-rtt-target = "0.5.0"
+smart-leds = "0.3"
 
 # stm32f4xx-hal support for Black Pill (STM32F411 / STM32F401)
 [dependencies.stm32f4xx-hal]

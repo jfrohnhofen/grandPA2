@@ -32,6 +32,8 @@
             pkgs.probe-rs-tools
             pkgs.dfu-util
             pkgs.alsa-utils
+            pkgs.python3
+            pkgs.python3Packages.pillow
           ];
 
           shellHook = ''
