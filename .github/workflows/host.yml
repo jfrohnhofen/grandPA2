@@ -1,0 +1,36 @@
+name: Build Host
+
+on:
+  push:
+    paths:
+      - 'host/**'
+      - '.github/workflows/host.yml'
+  pull_request:
+    paths:
+      - 'host/**'
+      - '.github/workflows/host.yml'
+
+jobs:
+  build:
+    name: Build on windows-latest
+    runs-on: windows-latest
+    
+    defaults:
+      run:
+        working-directory: host
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: grandpa2-host-windows
+          path: host/target/release/grandpa2.exe

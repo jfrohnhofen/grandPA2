@@ -3,5 +3,8 @@ repos:
     rev: v1.0
     hooks:
       - id: fmt
+        name: cargo fmt host
+        args: [--manifest-path, host/Cargo.toml, --, --check]
+      - id: fmt
         name: cargo fmt firmware
         args: [--manifest-path, firmware/Cargo.toml, --, --check]
