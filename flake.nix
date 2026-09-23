@@ -73,6 +73,21 @@
               echo "Target: x86_64-pc-windows-gnu / x86_64-pc-windows-msvc"
             '';
           };
+        
+          keycaps = pkgs.mkShell {
+            # Packages available in the environment
+            packages = with pkgs; [
+              python3
+              inkscape
+            ];
+
+            # Optional: commands to run when entering the shell
+            shellHook = ''
+              echo "🎨 SVG Generation Environment Loaded"
+              echo "Python: $(python3 --version)"
+              echo "Inkscape: $(inkscape --version | cut -d' ' -f2)"
+            '';
+          };
         };
       }
     );
