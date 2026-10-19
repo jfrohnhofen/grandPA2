@@ -229,22 +229,25 @@ pub mod windows_capture {
                         let width_i32 = width as i32;
                         let height_i32 = height as i32;
 
-                        // 7x7 pixel region yellow check
-                        let is_yellow = (-3..=3).flat_map(|dy| (-3..=3).map(move |dx| (dx, dy))).any(|(dx, dy)| {
-                            let px = target_x + dx;
-                            let py = target_y + dy;
+                        // 11x11 pixel region yellow check (checkerboard pattern)
+                        let is_yellow = (-5..=5)
+                            .flat_map(|dy| (-5..=5).map(move |dx| (dx, dy)))
+                            .filter(|(dx, dy)| (dx + dy) % 2 == 0)
+                            .any(|(dx, dy)| {
+                                let px = target_x + dx;
+                                let py = target_y + dy;
 
-                            if px >= 0 && px < width_i32 && py >= 0 && py < height_i32 {
-                                let px_idx = (py as usize) * pitch + (px as usize) * 4;
-                                if px_idx + 2 < bgra_pixels.len() {
-                                    let b = bgra_pixels[px_idx];
-                                    let g = bgra_pixels[px_idx + 1];
-                                    let r = bgra_pixels[px_idx + 2];
-                                    return r >= 180 && g >= 180 && b <= 90;
+                                if px >= 0 && px < width_i32 && py >= 0 && py < height_i32 {
+                                    let px_idx = (py as usize) * pitch + (px as usize) * 4;
+                                    if px_idx + 2 < bgra_pixels.len() {
+                                        let b = bgra_pixels[px_idx];
+                                        let g = bgra_pixels[px_idx + 1];
+                                        let r = bgra_pixels[px_idx + 2];
+                                        return r >= 180 && g >= 180 && b <= 90;
+                                    }
                                 }
-                            }
-                            false
-                        });
+                                false
+                            });
 
                         if last_led_states[idx] != Some(is_yellow) {
                             last_led_states[idx] = Some(is_yellow);
