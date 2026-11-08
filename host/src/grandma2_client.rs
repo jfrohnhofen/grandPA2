@@ -99,6 +99,18 @@ struct GrandMA2CmdPayload {
 }
 
 #[derive(Deserialize, Debug, Default)]
+#[serde(default)]
+struct GrandMA2PresetTypeListResponse {
+    pre: Vec<GrandMA2PresetTypeName>,
+}
+
+#[derive(Deserialize, Debug, Default)]
+#[serde(default)]
+struct GrandMA2PresetTypeName {
+    np: String,
+}
+
+#[derive(Deserialize, Debug, Default)]
 #[serde(default, rename_all = "camelCase")]
 struct GrandMA2PresetTypesResponse {
     pre: Vec<GrandMA2PresetGroup>,
@@ -114,6 +126,7 @@ struct GrandMA2PresetGroup {
 #[derive(Deserialize, Debug, Default)]
 #[serde(default)]
 struct GrandMA2Feature {
+    np: String,
     att: Vec<GrandMA2Attribute>,
 }
 
@@ -199,6 +212,7 @@ struct GrandMA2SystemResponse {
 #[serde(tag = "responseType", rename_all = "camelCase")]
 enum GrandMA2ServerMessage {
     PresetTypes(GrandMA2PresetTypesResponse),
+    PresetTypeList(GrandMA2PresetTypeListResponse),
     Playbacks(GrandMA2PlaybacksResponse),
     #[serde(untagged)]
     System(GrandMA2SystemResponse),
@@ -378,6 +392,9 @@ impl GrandMA2Client {
                         let mut keepalive_interval = tokio::time::interval(Duration::from_secs(10));
                         let mut poll_interval = tokio::time::interval(Duration::from_millis(200));
 
+                        // Preset type names (Dimmer, Position, ...) from the presetTypeList reply
+                        let mut preset_names: Vec<String> = Vec::new();
+
                         let ping_payload_str = serde_json::to_string(&serde_json::json!({
                             "session": session_id
                         }))
@@ -386,6 +403,14 @@ impl GrandMA2Client {
                         let preset_req_str = serde_json::to_string(&serde_json::json!({
                             "requestType": "presetTypes",
                             "type": "update",
+                            "session": session_id,
+                            "maxRequests": 1
+                        }))
+                        .unwrap_or_default();
+
+                        // Must be requested explicitly; the console never sends it unprompted.
+                        let preset_list_req_str = serde_json::to_string(&serde_json::json!({
+                            "requestType": "presetTypeList",
                             "session": session_id,
                             "maxRequests": 1
                         }))
@@ -417,6 +442,9 @@ impl GrandMA2Client {
 
                                 // Handle outgoing commands from hardware with coalescing
                                 _ = poll_interval.tick() => {
+                                    // The list is sent first so the names are known (and kept in sync
+                                    // when the show file changes) before the matching presetTypes reply.
+                                    let _ = write.send(Message::Text(preset_list_req_str.clone())).await;
                                     let _ = write.send(Message::Text(preset_req_str.clone())).await;
                                     let _ = write.send(Message::Text(playbacks_req_str.clone())).await;
                                 }
@@ -569,9 +597,15 @@ impl GrandMA2Client {
                                                             abort_with_login_instructions(&config, resp.session);
                                                         }
                                                     }
+                                                    GrandMA2ServerMessage::PresetTypeList(res) => {
+                                                        preset_names = res.pre.into_iter().map(|p| p.np).collect();
+                                                    }
                                                     GrandMA2ServerMessage::PresetTypes(res) => {
-                                                        let encoder_update = parse_preset_types(res);
-                                                        let _ = grandma2_tx.send(encoder_update).await;
+                                                        // Without the names the groups can't be identified yet.
+                                                        if !preset_names.is_empty() {
+                                                            let encoder_update = parse_preset_types(res, &preset_names);
+                                                            let _ = grandma2_tx.send(encoder_update).await;
+                                                        }
                                                     }
                                                     GrandMA2ServerMessage::Playbacks(res) => {
                                                         if let Some(executor_update) = parse_playbacks(res) {
@@ -608,19 +642,29 @@ impl GrandMA2Client {
     }
 }
 
-fn parse_preset_types(res: GrandMA2PresetTypesResponse) -> GrandMA2Event {
+/// Encoder slot -> full attribute path (preset type, feature, attribute).
+/// The full path is needed because names repeat: "Zoom" also exists as a reset
+/// attribute under Control/Reset, which has no value and used to overwrite the
+/// real Focus/Focus/Zoom. The presetTypes reply identifies preset types only by
+/// position, and the position depends on the show file, so the names come from
+/// the presetTypeList reply.
+const ENCODER_PATHS: [(&str, &str, &str); 4] = [
+    ("Dimmer", "Dimmer", "Dim"),
+    ("Position", "Position", "Pan"),
+    ("Position", "Position", "Tilt"),
+    ("Focus", "Focus", "Zoom"),
+];
+
+fn parse_preset_types(res: GrandMA2PresetTypesResponse, preset_names: &[String]) -> GrandMA2Event {
     let mut encoders = vec![EncoderUpdate::default(); 4];
 
-    for pre in res.pre {
+    for (pre_idx, pre) in res.pre.into_iter().enumerate() {
+        let Some(pre_name) = preset_names.get(pre_idx) else { continue };
         for fea in pre.fea {
             for att in fea.att {
-                if let Some(i) = match att.np.to_ascii_lowercase().as_str() {
-                    "dim" => Some(0),
-                    "pan" => Some(1),
-                    "tilt" => Some(2),
-                    "zoom" => Some(3),
-                    _ => None,
-                } {
+                if let Some(i) = ENCODER_PATHS.iter().position(|(p, f, a)| {
+                    pre_name.eq_ignore_ascii_case(p) && fea.np.eq_ignore_ascii_case(f) && att.np.eq_ignore_ascii_case(a)
+                }) {
                     encoders[i] = EncoderUpdate {
                         active: true,
                         group_active: pre.s,
