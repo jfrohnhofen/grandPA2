@@ -23,8 +23,8 @@ impl LedState {
     pub fn color(&self) -> (u8, u8, u8) {
         match self {
             LedState::Off => (0, 0, 0),
-            LedState::Inactive => (40, 14, 0), // Dim Orange idle
-            LedState::Active => (255, 80, 0),  // Bright Orange active
+            LedState::Inactive => (32, 10, 0), // Dim Orange idle
+            LedState::Active => (255, 60, 0),  // Bright Orange active
         }
     }
 }
