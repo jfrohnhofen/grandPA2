@@ -20,6 +20,7 @@
           fenix.packages.${system}.stable.cargo
           fenix.packages.${system}.stable.rustc
           fenix.packages.${system}.stable.rust-src
+          fenix.packages.${system}.stable.rustfmt
         ];
 
         # Toolchain for STM32F4 Firmware (thumbv7em-none-eabihf)
