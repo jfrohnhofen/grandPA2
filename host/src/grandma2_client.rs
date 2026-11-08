@@ -665,10 +665,12 @@ fn parse_preset_types(res: GrandMA2PresetTypesResponse, preset_names: &[String])
                 if let Some(i) = ENCODER_PATHS.iter().position(|(p, f, a)| {
                     pre_name.eq_ignore_ascii_case(p) && fea.np.eq_ignore_ascii_case(f) && att.np.eq_ignore_ascii_case(a)
                 }) {
+                    // grandMA2 sends "-" as a placeholder for "no value"; real negative
+                    // values (pan/tilt) must keep their sign.
                     encoders[i] = EncoderUpdate {
                         active: true,
                         group_active: pre.s,
-                        value: att.t.replace("-", ""),
+                        value: if att.t.chars().all(|c| c == '-') { String::new() } else { att.t.clone() },
                         programmer: att.c.eq_ignore_ascii_case("#FF0000"),
                     };
                 }
